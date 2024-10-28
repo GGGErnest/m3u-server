@@ -1,0 +1,23 @@
+{
+  "filters": [
+    {
+      "name": "GENERAL",
+      "country": "CUBA"
+    },
+    {
+      "name": "MLB GAME PASS"
+    },
+    {
+      "name": "SPANISH",
+      "renameTo": "SPORTS"
+    },
+    {
+      "name": "SPAIN",
+      "country": "SP"
+    },
+    {
+      "name": "GENERAL",
+      "country": "LATINO"
+    }
+  ]
+}

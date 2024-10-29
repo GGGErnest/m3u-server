@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express';
 import cron from 'node-cron';
 import axios from 'axios';
-import * as fs from 'fs/promises';
+import * as asyncFs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import { applyFilters, exportToM3U, parse } from './parser';
 import filters from './filters.json';
@@ -36,8 +37,19 @@ class M3UServer {
     try {
       console.log('Starting M3U file download...');
 
-      const response = await axios.get<string>(this.config.downloadUrl);
-      await fs.writeFile(this.config.sourceFilePath, response.data);
+      const writer = fs.createWriteStream(this.config.sourceFilePath);
+
+      const response = await axios.get(this.config.downloadUrl, { responseType: 'stream' });
+
+      // Pipe the downloaded data directly to the writable stream
+      response.data.pipe(writer);
+
+      // Wait for the write stream to finish
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+      console.log('M3U file downloaded successfully, starting processing...');
 
       const entries = await parse(this.config.sourceFilePath);
       const filteredEntries = applyFilters(entries, this._filters);
@@ -61,7 +73,7 @@ class M3UServer {
 
   private async servePlaylist(req: Request, res: Response): Promise<void> {
     try {
-      const content = await fs.readFile(this.config.filteredFilePath, 'utf8');
+      const content = await asyncFs.readFile(this.config.filteredFilePath, 'utf8');
       res.setHeader('Content-Type', 'application/x-mpegurl');
       res.send(content);
     } catch (error) {
@@ -86,8 +98,8 @@ class M3UServer {
     } catch (error) {
       console.error('Error during initialization:', error);
       // Create empty files if download fails
-      await fs.writeFile(this.config.sourceFilePath, '#EXTM3U\n');
-      await fs.writeFile(this.config.filteredFilePath, '#EXTM3U\n');
+      await asyncFs.writeFile(this.config.sourceFilePath, '#EXTM3U\n');
+      await asyncFs.writeFile(this.config.filteredFilePath, '#EXTM3U\n');
     }
   }
 
@@ -108,7 +120,7 @@ const config: Config = {
   port: 3000,
   sourceFilePath: path.join(__dirname, 'source.m3u'),
   filteredFilePath: path.join(__dirname, 'filtered.m3u'),
-  downloadUrl: '', // Replace with your M3U URL
+  downloadUrl: 'http://tvstation.cc/get.php?username=78KD7A2&password=35D2H4Y&type=m3u&output=mpegts', // Replace with your M3U URL
   blacklistedKeywords: ['ads', 'commercials', 'teleshopping'],
   validExtensions: ['.ts', '.m3u8', '.mp4']
 };
